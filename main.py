@@ -1,8 +1,11 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import requests
+import uvicorn
 
 app = FastAPI()
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
 
 app.add_middleware(
     CORSMiddleware,
@@ -11,15 +14,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Message(BaseModel):
-    message: str
+@app.post("/ask")
+def ask(question: str = Body(..., embed=True)):
+    data = {
+        "model": "mistral",
+        "prompt": question,
+        "stream": False
+    }
 
-@app.post("/chat")
-async def chat(message: Message):
-    user_message = message.message
-    ai_response = user_message
-    return {"ai_response": ai_response}
+    try:
+        response = requests.post(OLLAMA_URL, json=data, timeout=60)
+        response.raise_for_status()
+
+        result = response.json()
+        answer = result.get("response", "No response")
+        return {"answer": answer}
+
+    except requests.RequestException as e:
+        return {"error": f"Connection error: {str(e)}"}
+
+    except Exception as e:
+        return {"error": f"Внутренняя ошибка сервера: {str(e)}"}
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app")
