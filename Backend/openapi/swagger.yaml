@@ -1,0 +1,194 @@
+openapi: 3.0.0
+info:
+  title: ChatGPT-like AI API
+  version: 1.0.0
+  description: REST API for a chat-based AI assistant
+
+servers:
+  - url: http://localhost:8000/api
+
+paths:
+  /users:
+    get:
+      summary: List users
+      tags: [Users]
+      responses:
+        '200':
+          description: A list of users
+
+  /chats:
+    get:
+      summary: Get all chats
+      tags: [Chats]
+      responses:
+        '200':
+          description: A list of all chat sessions
+
+    post:
+      summary: Create a new chat session
+      tags: [Chats]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '201':
+          description: Chat created successfully
+
+  /chats/{chat_id}:
+    get:
+      summary: Get a single chat by ID
+      tags: [Chats]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chat details
+
+    delete:
+      summary: Delete a chat
+      tags: [Chats]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Chat deleted
+
+    put:
+      summary: Rename or update a chat
+      tags: [Chats]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+      responses:
+        '200':
+          description: Chat updated
+
+  /chats/{chat_id}/messages:
+    get:
+      summary: Get messages from a chat
+      tags: [Messages]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of messages in chat
+
+    post:
+      summary: Add a user message and get AI reply
+      tags: [Messages]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [user]
+                content:
+                  type: string
+      responses:
+        '200':
+          description: AI response returned
+
+  /chats/{chat_id}/messages/{message_id}:
+    delete:
+      summary: Delete a message from chat
+      tags: [Messages]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Message deleted
+
+  /ai/generate:
+    post:
+      summary: Generate AI response from prompt
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+      responses:
+        '200':
+          description: AI generated response
+
+  /chats/{chat_id}/export:
+    get:
+      summary: Export chat as JSON
+      tags: [Chats]
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exported chat
+
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: OK
+
+tags:
+  - name: Users
+  - name: Chats
+  - name: Messages
+  - name: AI
+  - name: System
