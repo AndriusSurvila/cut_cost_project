@@ -1,1 +1,0 @@
-# cut_cost_project

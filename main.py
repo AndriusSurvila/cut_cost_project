@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import requests
 import uvicorn
+import os
+
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 
 app = FastAPI()
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,27 +16,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/ask")
-def ask(question: str = Body(..., embed=True)):
+class QuestionRequest(BaseModel):
+    question: str
+
+def ask_ollama(prompt: str) -> str:
     data = {
         "model": "mistral",
-        "prompt": question,
+        "prompt": prompt.strip(),
         "stream": False
     }
 
     try:
-        response = requests.post(OLLAMA_URL, json=data, timeout=60)
+        response = requests.post(OLLAMA_URL, json=data, timeout=90)
         response.raise_for_status()
-
-        result = response.json()
-        answer = result.get("response", "No response")
-        return {"answer": answer}
-
+        return response.json().get("response", "").strip()
+    except requests.Timeout:
+        raise HTTPException(status_code=504, detail="Ollama timeout")
     except requests.RequestException as e:
-        return {"error": f"Connection error: {str(e)}"}
+        raise HTTPException(status_code=502, detail=f"Ollama error: {str(e)}")
 
-    except Exception as e:
-        return {"error": f"Внутренняя ошибка сервера: {str(e)}"}
+@app.post("/ask")
+def ask(request: QuestionRequest):
+    user_question = request.question.strip()
 
-if __name__ == "__main__":
-    uvicorn.run("main:app")
+    step1_prompt = f"""
+Detect the language of the question and translate it into English.
+Return ONLY the translated English version, no comments.
+
+Question: {user_question}
+"""
+    english_question = ask_ollama(step1_prompt)
+
+    step2_prompt = f"""
+Answer the following question in English, clearly and concisely:
+
+{english_question}
+"""
+    english_answer = ask_ollama(step2_prompt)
+
+    step3_prompt = f"""
+The original question was: "{user_question}"
+The answer in English is: "{english_answer}"
+Detect the original language and translate the answer BACK into it.
+Return ONLY the translated answer, with no extra text.
+"""
+    final_answer = ask_ollama(step3_prompt)
+
+    return {"answer": final_answer}
