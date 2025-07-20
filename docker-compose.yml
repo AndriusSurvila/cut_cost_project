@@ -1,3 +1,37 @@
+<<<<<<< HEAD
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  fastapi:
+    build:
+      context: .
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_URL=http://ollama:11434/api/generate
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  ollama_models:
+
+networks:
+  app-network:
+    driver: bridge
+=======
 version: "3.9"
 
 services:
@@ -50,3 +84,4 @@ services:
 
 volumes:
   db_data:
+>>>>>>> 7408d09b93d45dfb927ad1514fc5608ac75111ab
