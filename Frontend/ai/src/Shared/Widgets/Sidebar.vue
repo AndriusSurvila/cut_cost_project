@@ -5,9 +5,11 @@ import { ChatsList } from '@m/Chat';
 import { useChatStore } from '@m/Chat';
 import { RouterLink } from 'vue-router';
 import { computed, ref } from 'vue';
+import { globalStore } from '../Stores/global-store';
 
 const chatStore = useChatStore();
 const search = ref('');
+const global = globalStore();
 
 const chats = computed(() => chatStore.chats.filter(chat =>
     chat.name.toLowerCase().includes(search.value.toLowerCase())));
@@ -27,7 +29,7 @@ const chats = computed(() => chatStore.chats.filter(chat =>
             x-bind:class="showSidebar ? 'translate-x-0' : '-translate-x-60'" aria-label="sidebar navigation">
             <div class="flex justify-between items-center">
                 <RouterLink to="/" class="flex h-10 items-center gap-2 text-violet-300 text-2xl uppercase font-bold">
-                    Nulaidukas
+                    {{ global.app_name }}
                 </RouterLink>
 
                 <RouterLink to="/"
