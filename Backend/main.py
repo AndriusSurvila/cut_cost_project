@@ -6,14 +6,19 @@ from app.container import Container
 from app.services.api_model_service import CladeModelService
 from app.contracts.stream_interface import LLMStreamInterface
 from app.controllers.stream_controller import StreamController
-from fastapi import stream_controller
+from app.controllers import stream_controller
+from app.controllers import chat_controller
+from app.controllers import webhook_controller
 
 container = Container()
 container.bind(LLMStreamInterface, CladeModelService)
 stream_controller = container.resolve(StreamController)
 
 app = FastAPI()
-app.include_router(stream_controller.router, prefix="/api")
+
+app.include_router(stream_controller.router)
+app.include_router(chat_controller.router, prefix="/api")
+app.include_router(webhook_controller.router)
 
 app.add_middleware(
     CORSMiddleware,
