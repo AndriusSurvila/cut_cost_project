@@ -2,10 +2,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from container import Container
-from services.api_model_service import CladeModelService
-from contracts.stream_interface import LLMStreamInterface
-from controllers.stream_controller import StreamController
+from app.container import Container
+from app.services.api_model_service import CladeModelService
+from app.contracts.stream_interface import LLMStreamInterface
+from app.controllers.stream_controller import StreamController
 
 container = Container()
 container.bind(LLMStreamInterface, CladeModelService)

@@ -1,4 +1,4 @@
-from contracts.stream_interface import LLMStreamInterface
+from app.contracts.stream_interface import LLMStreamInterface
 import requests
 import os
 
