@@ -20,6 +20,9 @@ class QuestionRequest(BaseModel):
     question: str
 
 def ask_ollama(prompt: str) -> str:
+
+    print(prompt)
+
     data = {
         "model": "mistral",
         "prompt": prompt.strip(),
