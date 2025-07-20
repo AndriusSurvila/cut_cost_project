@@ -5,6 +5,10 @@ import requests
 import uvicorn
 import os
 
+from container import Container
+
+container.bind(streamInterface, CladeModelService)
+
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 
 app = FastAPI()
@@ -21,7 +25,7 @@ class QuestionRequest(BaseModel):
 
 def ask_ollama(prompt: str) -> str:
 
-    print(prompt)
+    print(1 + 1)
 
     data = {
         "model": "mistral",
