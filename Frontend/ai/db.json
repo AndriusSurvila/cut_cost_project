@@ -1,0 +1,76 @@
+{
+  "chats": [
+    {
+      "id": "1",
+      "name": "Text Chat",
+      "messages": [
+        {
+          "id": "1",
+          "sender": "user",
+          "text": "Write a short paragraph about penguin.",
+          "timestamp": "2025-07-19T10:00:00Z"
+        },
+        {
+          "id": "2",
+          "sender": "ai",
+          "text": "The penguin is a fascinating bird perfectly adapted to life in the cold Antarctic regions...",
+          "timestamp": "2025-07-19T10:00:02Z"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "name": "Travel Chat",
+      "messages": [
+        {
+          "id": "1",
+          "sender": "user",
+          "text": "Can you suggest some top destinations for summer vacations?",
+          "timestamp": "2025-07-18T15:30:00Z"
+        },
+        {
+          "id": "2",
+          "sender": "ai",
+          "text": "Sure! Some great summer destinations include Bali, Santorini, Amalfi Coast, and Maui.",
+          "timestamp": "2025-07-18T15:30:10Z"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "name": "Tech Support",
+      "messages": [
+        {
+          "id": "1",
+          "sender": "user",
+          "text": "My laptop won't turn on. What should I do?",
+          "timestamp": "2025-07-17T09:15:00Z"
+        },
+        {
+          "id": "2",
+          "sender": "ai",
+          "text": "Try holding the power button for 10 seconds, then release and press again. If it still doesn’t work, check if the battery is charged or try plugging it in.",
+          "timestamp": "2025-07-17T09:15:30Z"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "name": "Cooking Chat",
+      "messages": [
+        {
+          "id": "1",
+          "sender": "user",
+          "text": "What's a quick recipe for a vegan pasta?",
+          "timestamp": "2025-07-16T18:45:00Z"
+        },
+        {
+          "id": "2",
+          "sender": "ai",
+          "text": "Try cooking pasta with olive oil, garlic, cherry tomatoes, spinach, and toss with some fresh basil and nutritional yeast for a cheesy flavor.",
+          "timestamp": "2025-07-16T18:45:20Z"
+        }
+      ]
+    }
+  ]
+}
