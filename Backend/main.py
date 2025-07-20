@@ -1,15 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import requests
 import uvicorn
-import os
-
 from container import Container
+from services.api_model_service import CladeModelService
+from contracts.stream_interface import LLMStreamInterface
+from controllers.stream_controller import StreamController
 
-# container.bind(streamInterface, CladeModelService)
-
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+container = Container()
+container.bind(LLMStreamInterface, CladeModelService)
+stream_controller = container.resolve(StreamController)
 
 app = FastAPI()
 
@@ -23,25 +23,6 @@ app.add_middleware(
 class QuestionRequest(BaseModel):
     question: str
 
-def ask_ollama(prompt: str) -> str:
-
-    print(1 + 1)
-
-    data = {
-        "model": "mistral",
-        "prompt": prompt.strip(),
-        "stream": False
-    }
-
-    try:
-        response = requests.post(OLLAMA_URL, json=data, timeout=90)
-        response.raise_for_status()
-        return response.json().get("response", "").strip()
-    except requests.Timeout:
-        raise HTTPException(status_code=504, detail="Ollama timeout")
-    except requests.RequestException as e:
-        raise HTTPException(status_code=502, detail=f"Ollama error: {str(e)}")
-
 @app.post("/ask")
 def ask(request: QuestionRequest):
     user_question = request.question.strip()
@@ -52,14 +33,14 @@ Return ONLY the translated English version, no comments.
 
 Question: {user_question}
 """
-    english_question = ask_ollama(step1_prompt)
+    english_question = stream_controller.stream(step1_prompt)
 
     step2_prompt = f"""
 Answer the following question in English, clearly and concisely:
 
 {english_question}
 """
-    english_answer = ask_ollama(step2_prompt)
+    english_answer = stream_controller.stream(step2_prompt)
 
     step3_prompt = f"""
 The original question was: "{user_question}"
@@ -67,6 +48,9 @@ The answer in English is: "{english_answer}"
 Detect the original language and translate the answer BACK into it.
 Return ONLY the translated answer, with no extra text.
 """
-    final_answer = ask_ollama(step3_prompt)
+    final_answer = stream_controller.stream(step3_prompt)
 
     return {"answer": final_answer}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)

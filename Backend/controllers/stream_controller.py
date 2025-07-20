@@ -1,12 +1,8 @@
-# надо релизовать интерфейс streamInterface
-
-import streamInterface;
-from streamImplementation import StreamImplementation
+from contracts.stream_interface import LLMStreamInterface
 
 class StreamController:
-    def __init__(self, streamer: StreamInterface):
-        self.llm = llm
-    
-    def stream(self, prompt):
-        streamInterface.stream(self.llm, prompt)
-        
+    def __init__(self, streamer: LLMStreamInterface):
+        self.llm = streamer
+
+    def stream(self, prompt: str) -> str:
+        return self.llm.predict(prompt)

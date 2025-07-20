@@ -1,4 +1,3 @@
-# Простой DI-контейнер по аналогии с Laravel
 class Container:
     def __init__(self):
         self.bindings = {}
@@ -7,12 +6,10 @@ class Container:
         self.bindings[abstract] = concrete
 
     def resolve(self, cls):
-        # Получаем список зависимостей из конструктора
         import inspect
         sig = inspect.signature(cls.__init__)
-        params = list(sig.parameters.values())[1:]  # исключаем self
+        params = list(sig.parameters.values())[1:]
 
-        # Рекурсивно резолвим зависимости
         dependencies = []
         for param in params:
             dep_type = param.annotation
