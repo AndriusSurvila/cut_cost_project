@@ -6,12 +6,14 @@ from app.container import Container
 from app.services.api_model_service import CladeModelService
 from app.contracts.stream_interface import LLMStreamInterface
 from app.controllers.stream_controller import StreamController
+from fastapi import stream_controller
 
 container = Container()
 container.bind(LLMStreamInterface, CladeModelService)
 stream_controller = container.resolve(StreamController)
 
 app = FastAPI()
+app.include_router(stream_controller.router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,100 +1,70 @@
-from fastapi import HTTPException
-from fastapi.responses import StreamingResponse
-from app.contracts.stream_interface import LLMStreamInterface
-from typing import AsyncGenerator, Generator
-import asyncio
-import json
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database.session import SessionLocal
+from app.models.models import Chat, Message
+from app.policies.policies import generate_ai_response
+from pydantic import BaseModel
+from typing import List
 
-class StreamController:
-    def __init__(self, streamer: LLMStreamInterface):
-        self.llm = streamer
+router = APIRouter()
 
-    async def predict(self, prompt: str) -> str:
-        """Получить полный ответ от LLM"""
-        try:
-            if not prompt or not prompt.strip():
-                raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-            
-            result = await self.llm.predict(prompt)
-            
-            if not result:
-                raise HTTPException(status_code=500, detail="LLM returned empty response")
-            
-            return result
-            
-        except HTTPException:
-            raise  # Пробрасываем HTTP ошибки как есть
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-    async def stream_response(self, prompt: str) -> StreamingResponse:
-        """Стриминговый ответ для FastAPI"""
-        try:
-            if not prompt or not prompt.strip():
-                raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-            
-            async def generate_stream():
-                try:
-                    async for chunk in self.llm.predict_stream(prompt):
-                        if chunk:
-                            # Отправляем данные в формате Server-Sent Events
-                            yield f"data: {json.dumps({'content': chunk, 'type': 'content'})}\n\n"
-                    
-                    # Сигнал завершения
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    
-                except Exception as e:
-                    # Отправляем ошибку через стрим
-                    error_data = {
-                        'type': 'error', 
-                        'error': str(e)
-                    }
-                    yield f"data: {json.dumps(error_data)}\n\n"
-            
-            return StreamingResponse(
-                generate_stream(),
-                media_type="text/plain",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "Access-Control-Allow-Origin": "*"
-                }
-            )
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Stream initialization failed: {str(e)}")
+class ChatCreate(BaseModel):
+    title: str
 
-    async def stream_generator(self, prompt: str) -> AsyncGenerator[str, None]:
-        """Генератор для стриминга (если нужен отдельно)"""
-        try:
-            if not prompt or not prompt.strip():
-                raise ValueError("Prompt cannot be empty")
-            
-            async for chunk in self.llm.predict_stream(prompt):
-                if chunk:
-                    yield chunk
-                    
-        except Exception as e:
-            raise Exception(f"Stream generation failed: {str(e)}")
+class MessageCreate(BaseModel):
+    content: str
+    role: str  # user
 
-    def validate_prompt(self, prompt: str, max_length: int = 4000) -> bool:
-        """Валидация промпта"""
-        if not prompt or not prompt.strip():
-            return False
-        
-        if len(prompt) > max_length:
-            return False
-        
-        return True
+@router.post("/chats", response_model=dict)
+def create_chat(data: ChatCreate, db: Session = Depends(get_db)):
+    chat = Chat(title=data.title)
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+    return {"id": chat.id, "title": chat.title}
 
-    async def predict_with_validation(self, prompt: str, max_length: int = 4000) -> str:
-        """Предсказание с валидацией"""
-        if not self.validate_prompt(prompt, max_length):
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid prompt. Must be non-empty and less than {max_length} characters"
-            )
-        
-        return await self.predict(prompt)
+@router.get("/chats", response_model=List[dict])
+def list_chats(db: Session = Depends(get_db)):
+    chats = db.query(Chat).all()
+    return [{"id": c.id, "title": c.title} for c in chats]
+
+@router.post("/chats/{chat_id}/messages", response_model=dict)
+def post_message(chat_id: int, data: MessageCreate, db: Session = Depends(get_db)):
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    user_msg = Message(chat_id=chat_id, content=data.content, role="user")
+    db.add(user_msg)
+
+    # генерируем ответ
+    ai_response = generate_ai_response(data.content)
+    ai_msg = Message(chat_id=chat_id, content=ai_response, role="ai")
+    db.add(ai_msg)
+
+    db.commit()
+    return {"user": user_msg.content, "ai": ai_msg.content}
+
+@router.get("/chats/{chat_id}/messages", response_model=List[dict])
+def get_messages(chat_id: int, db: Session = Depends(get_db)):
+    messages = db.query(Message).filter(Message.chat_id == chat_id).all()
+    return [{"role": m.role, "content": m.content} for m in messages]
+
+@router.get("/chats/{chat_id}/export", response_model=dict)
+def export_chat(chat_id: int, db: Session = Depends(get_db)):
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    return {
+        "id": chat.id,
+        "title": chat.title,
+        "messages": [{"role": m.role, "content": m.content} for m in chat.messages]
+    }

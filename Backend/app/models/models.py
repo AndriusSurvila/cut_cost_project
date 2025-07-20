@@ -13,12 +13,13 @@ class Chat(Base):
 
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
 
+
 class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
     chat_id = Column(Integer, ForeignKey("chats.id"))
-    role = Column(String)
+    role = Column(String)  # user / ai
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
