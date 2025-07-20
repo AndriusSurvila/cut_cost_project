@@ -7,7 +7,7 @@ import os
 
 from container import Container
 
-container.bind(streamInterface, CladeModelService)
+# container.bind(streamInterface, CladeModelService)
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 
