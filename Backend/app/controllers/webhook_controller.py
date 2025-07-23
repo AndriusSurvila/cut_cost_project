@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Request, HTTPException
-from app.policies import generate_ai_response, stream_ai_response
-from starlette.responses import StreamingResponse
+from fastapi import APIRouter, Request, HTTPException, Depends
+from sqlalchemy.orm import Session
+from app.models.session import get_db
+from app.policies.policies import generate_ai_response, stream_ai_response
 
 router = APIRouter()
 
 @router.post("/webhook")
-async def webhook(request: Request):
+async def webhook(request: Request, db: Session = Depends(get_db)):
+    """Webhook для обработки внешних запросов"""
     try:
         data = await request.json()
         prompt = data.get("prompt", "")
@@ -17,7 +19,7 @@ async def webhook(request: Request):
         if stream:
             return stream_ai_response(prompt)
         else:
-            response = generate_ai_response(prompt)
+            response = generate_ai_response(prompt, db)
             return {"response": response}
 
     except Exception as e:

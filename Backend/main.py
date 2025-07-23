@@ -2,62 +2,109 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+
+from app.models.models import Base
+from app.models.session import engine
+
 from app.container import Container
 from app.services.api_model_service import CladeModelService
 from app.contracts.stream_interface import LLMStreamInterface
 from app.controllers.stream_controller import StreamController
+
 from app.controllers import stream_controller
 from app.controllers import chat_controller
 from app.controllers import webhook_controller
 
-container = Container()
-container.bind(LLMStreamInterface, CladeModelService)
-stream_controller = container.resolve(StreamController)
+def create_tables():
+    """Создание всех таблиц в БД"""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"❌ Error creating database tables: {e}")
+        raise
 
-app = FastAPI()
+def setup_container():
+    """Настройка DI контейнера"""
+    container = Container()
+    container.bind(LLMStreamInterface, CladeModelService)
+    return container.resolve(StreamController)
 
-app.include_router(stream_controller.router)
-app.include_router(chat_controller.router, prefix="/api")
-app.include_router(webhook_controller.router)
+def create_app():
+    """Создание и настройка FastAPI приложения"""
+    
+    create_tables()
+    
+    stream_controller_instance = setup_container()
+    
+    app = FastAPI(
+        title="ChatGPT-like AI API",
+        description="REST API for a chat-based AI assistant",
+        version="1.0.0"
+    )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.include_router(stream_controller.router)
+    app.include_router(chat_controller.router, prefix="/api")
+    app.include_router(webhook_controller.router)
 
-class QuestionRequest(BaseModel):
-    question: str
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-@app.post("/ask")
-def ask(request: QuestionRequest):
-    user_question = request.question.strip()
+    class QuestionRequest(BaseModel):
+        question: str
 
-    step1_prompt = f"""
-Detect the language of the question and translate it into English.
-Return ONLY the translated English version, no comments.
+    @app.post("/ask")
+    def ask(request: QuestionRequest):
+        """
+        Многоступенчатая обработка вопроса:
+        1. Определение языка и перевод на английский
+        2. Получение ответа на английском
+        3. Перевод ответа обратно на исходный язык
+        """
+        user_question = request.question.strip()
 
-Question: {user_question}
-"""
-    english_question = stream_controller.stream(step1_prompt)
+        step1_prompt = f"""
+    Detect the language of the question and translate it into English.
+    Return ONLY the translated English version, no comments.
 
-    step2_prompt = f"""
-Answer the following question in English, clearly and concisely:
+    Question: {user_question}
+    """
+        english_question = stream_controller_instance.stream(step1_prompt)
 
-{english_question}
-"""
-    english_answer = stream_controller.stream(step2_prompt)
+        step2_prompt = f"""
+    Answer the following question in English, clearly and concisely:
 
-    step3_prompt = f"""
-The original question was: "{user_question}"
-The answer in English is: "{english_answer}"
-Detect the original language and translate the answer BACK into it.
-Return ONLY the translated answer, with no extra text.
-"""
-    final_answer = stream_controller.stream(step3_prompt)
+    {english_question}
+    """
+        english_answer = stream_controller_instance.stream(step2_prompt)
 
-    return {"answer": final_answer}
+        step3_prompt = f"""
+    The original question was: "{user_question}"
+    The answer in English is: "{english_answer}"
+    Detect the original language and translate the answer BACK into it.
+    Return ONLY the translated answer, with no extra text.
+    """
+        final_answer = stream_controller_instance.stream(step3_prompt)
+
+        return {"answer": final_answer}
+
+    @app.get("/")
+    def root():
+        """Корневой эндпоинт"""
+        return {
+            "message": "ChatGPT-like AI API",
+            "version": "1.0.0",
+            "docs": "/docs",
+            "health": "/health"
+        }
+
+    return app
+
+app = create_app()
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
