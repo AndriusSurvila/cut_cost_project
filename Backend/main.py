@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -10,10 +10,13 @@ from app.container import Container
 from app.services.api_model_service import CladeModelService
 from app.contracts.stream_interface import LLMStreamInterface
 from app.controllers.stream_controller import StreamController
+from app.dependencies.auth import get_current_active_user
+from app.models.models import User
 
 from app.controllers import stream_controller
 from app.controllers import chat_controller
 from app.controllers import webhook_controller
+from app.controllers import auth_controller
 
 def create_tables():
     """Создание всех таблиц в БД"""
@@ -38,14 +41,15 @@ def create_app():
     stream_controller_instance = setup_container()
     
     app = FastAPI(
-        title="ChatGPT-like AI API",
-        description="REST API for a chat-based AI assistant",
+        title="ChatGPT-like AI API with Authentication",
+        description="REST API for a chat-based AI assistant with JWT authentication",
         version="1.0.0"
     )
 
-    app.include_router(stream_controller.router)
-    app.include_router(chat_controller.router, prefix="/api")
-    app.include_router(webhook_controller.router)
+    app.include_router(auth_controller.router, prefix="/auth", tags=["Authentication"])
+    app.include_router(stream_controller.router, tags=["AI Stream"])
+    app.include_router(chat_controller.router, prefix="/api", tags=["Chats"])
+    app.include_router(webhook_controller.router, tags=["Webhooks"])
 
     app.add_middleware(
         CORSMiddleware,
@@ -58,9 +62,12 @@ def create_app():
         question: str
 
     @app.post("/ask")
-    def ask(request: QuestionRequest):
+    def ask(
+        request: QuestionRequest,
+        current_user: User = Depends(get_current_active_user)
+    ):
         """
-        Многоступенчатая обработка вопроса:
+        Многоступенчатая обработка вопроса с аутентификацией:
         1. Определение языка и перевод на английский
         2. Получение ответа на английском
         3. Перевод ответа обратно на исходный язык
@@ -90,16 +97,25 @@ def create_app():
     """
         final_answer = stream_controller_instance.stream(step3_prompt)
 
-        return {"answer": final_answer}
+        return {
+            "answer": final_answer,
+            "user": current_user.username
+        }
 
     @app.get("/")
     def root():
         """Корневой эндпоинт"""
         return {
-            "message": "ChatGPT-like AI API",
+            "message": "ChatGPT-like AI API with Authentication",
             "version": "1.0.0",
             "docs": "/docs",
-            "health": "/health"
+            "health": "/health",
+            "auth_endpoints": {
+                "register": "/auth/register",
+                "login": "/auth/login",
+                "refresh": "/auth/refresh",
+                "me": "/auth/me"
+            }
         }
 
     return app

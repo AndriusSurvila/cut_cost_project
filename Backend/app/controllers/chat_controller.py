@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from app.models.session import get_db
-from app.models.models import Chat, Message
+from app.models.models import Chat, Message, User
+from app.dependencies.auth import get_current_active_user
 from app.policies.policies import generate_ai_response, stream_ai_response, save_message_to_chat, get_or_create_chat
 import json
 
@@ -38,32 +39,56 @@ class ChatResponse(BaseModel):
         from_attributes = True
 
 @router.get("/chats", response_model=List[ChatResponse])
-def get_all_chats(db: Session = Depends(get_db)):
-    """Получить все чаты"""
-    chats = db.query(Chat).all()
+def get_all_chats(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Получить все чаты текущего пользователя"""
+    chats = db.query(Chat).filter(Chat.user_id == current_user.id).all()
     return chats
 
 @router.post("/chats", response_model=ChatResponse)
-def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db)):
+def create_chat(
+    chat_data: ChatCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Создать новый чат"""
-    chat = Chat(title=chat_data.title)
+    chat = Chat(title=chat_data.title, user_id=current_user.id)
     db.add(chat)
     db.commit()
     db.refresh(chat)
     return chat
 
 @router.get("/chats/{chat_id}", response_model=ChatResponse)
-def get_chat(chat_id: int = Path(...), db: Session = Depends(get_db)):
+def get_chat(
+    chat_id: int = Path(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Получить чат по ID"""
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     return chat
 
 @router.put("/chats/{chat_id}", response_model=ChatResponse)
-def update_chat(chat_id: int, chat_data: ChatUpdate, db: Session = Depends(get_db)):
+def update_chat(
+    chat_id: int,
+    chat_data: ChatUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Обновить название чата"""
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
@@ -73,9 +98,17 @@ def update_chat(chat_id: int, chat_data: ChatUpdate, db: Session = Depends(get_d
     return chat
 
 @router.delete("/chats/{chat_id}")
-def delete_chat(chat_id: int = Path(...), db: Session = Depends(get_db)):
+def delete_chat(
+    chat_id: int = Path(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Удалить чат"""
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
@@ -84,9 +117,17 @@ def delete_chat(chat_id: int = Path(...), db: Session = Depends(get_db)):
     return {"message": "Chat deleted successfully"}
 
 @router.get("/chats/{chat_id}/messages", response_model=List[MessageResponse])
-def get_chat_messages(chat_id: int = Path(...), db: Session = Depends(get_db)):
+def get_chat_messages(
+    chat_id: int = Path(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Получить все сообщения чата"""
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
@@ -95,12 +136,17 @@ def get_chat_messages(chat_id: int = Path(...), db: Session = Depends(get_db)):
 
 @router.post("/chats/{chat_id}/messages")
 def send_message(
-    chat_id: int, 
-    message_data: MessageCreate, 
+    chat_id: int,
+    message_data: MessageCreate,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Отправить сообщение и получить ответ от AI"""
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
@@ -108,7 +154,6 @@ def send_message(
     
     try:
         ai_response = generate_ai_response(message_data.content, db)
-        
         ai_message = save_message_to_chat(db, chat_id, "assistant", ai_response)
         
         return {
@@ -130,13 +175,22 @@ def send_message(
 
 @router.delete("/chats/{chat_id}/messages/{message_id}")
 def delete_message(
-    chat_id: int = Path(...), 
-    message_id: int = Path(...), 
+    chat_id: int = Path(...),
+    message_id: int = Path(...),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Удалить сообщение"""
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
     message = db.query(Message).filter(
-        Message.id == message_id, 
+        Message.id == message_id,
         Message.chat_id == chat_id
     ).first()
     
@@ -148,13 +202,22 @@ def delete_message(
     return {"message": "Message deleted successfully"}
 
 @router.post("/chats/{chat_id}/stream")
-def stream_chat_response(chat_id: int, request: dict, db: Session = Depends(get_db)):
+def stream_chat_response(
+    chat_id: int,
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Стрим ответа AI"""
     prompt = request.get("prompt", "")
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt is required")
     
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
@@ -163,9 +226,17 @@ def stream_chat_response(chat_id: int, request: dict, db: Session = Depends(get_
     return stream_ai_response(prompt)
 
 @router.get("/chats/{chat_id}/export")
-def export_chat(chat_id: int = Path(...), db: Session = Depends(get_db)):
+def export_chat(
+    chat_id: int = Path(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     """Экспорт чата в JSON"""
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    chat = db.query(Chat).filter(
+        Chat.id == chat_id,
+        Chat.user_id == current_user.id
+    ).first()
+    
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
