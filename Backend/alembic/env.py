@@ -21,8 +21,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from database.models import Base
-from database.session import engine
+from app.models.models import Base
+from app.models.session import engine
 
 # Fixed: Remove the conflicting None assignment
 target_metadata = Base.metadata
