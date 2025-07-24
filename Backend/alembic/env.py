@@ -19,7 +19,8 @@ if config.config_file_name is not None:
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.models.models import Base
 from app.models.session import engine
