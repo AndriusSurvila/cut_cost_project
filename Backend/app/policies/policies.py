@@ -64,15 +64,17 @@ def save_message_to_chat(db: Session, chat_id: int, role: str, content: str) -> 
     db.refresh(message)
     return message
 
-def get_or_create_chat(db: Session, chat_id: int = None, title: str = "New Chat") -> Chat:
+def get_or_create_chat(db: Session, user_id: int, chat_id: int = None, title: str = "New Chat") -> Chat:
     """Получает существующий чат или создает новый"""
     if chat_id:
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+        chat = db.query(Chat).filter(
+            Chat.id == chat_id,
+            Chat.user_id == user_id
+        ).first()
         if chat:
             return chat
     
-    # Создаем новый чат
-    chat = Chat(title=title)
+    chat = Chat(title=title, user_id=user_id)
     db.add(chat)
     db.commit()
     db.refresh(chat)
