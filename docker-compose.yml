@@ -2,17 +2,27 @@ version: '3.8'
 
 services:
   app:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       - OLLAMA_URL=http://ollama:11434/api/generate
       - DATABASE_URL=sqlite:///./data/chat.db
+      - SECRET_KEY=your-production-secret-key-change-this
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
     volumes:
       - ./data:/app/data
+      # Для разработки можно добавить:
+      # - .:/app
     depends_on:
-      - ollama
+      ollama:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - chat-network
 
   ollama:
     image: ollama/ollama:latest
@@ -23,11 +33,25 @@ services:
     environment:
       - OLLAMA_MODELS=mistral
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: >
       sh -c "ollama serve & 
-             sleep 10 && 
+             sleep 30 && 
              ollama pull mistral && 
+             echo 'Mistral model loaded successfully' &&
              wait"
+    networks:
+      - chat-network
 
 volumes:
   ollama_data:
+    driver: local
+
+networks:
+  chat-network:
+    driver: bridge
