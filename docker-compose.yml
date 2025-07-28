@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   app:
-    build: 
-      context: .
+    build:
+      context: ./Backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
@@ -14,9 +12,7 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - REFRESH_TOKEN_EXPIRE_DAYS=7
     volumes:
-      - ./data:/app/data
-      # Для разработки можно добавить:
-      # - .:/app
+      - ./Backend/data:/app/data
     depends_on:
       ollama:
         condition: service_healthy
@@ -39,19 +35,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    command: >
-      sh -c "ollama serve & 
-             sleep 30 && 
-             ollama pull mistral && 
-             echo 'Mistral model loaded successfully' &&
-             wait"
     networks:
       - chat-network
 
 volumes:
   ollama_data:
-    driver: local
 
 networks:
   chat-network:
-    driver: bridge
