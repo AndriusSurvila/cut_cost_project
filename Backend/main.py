@@ -73,11 +73,14 @@ def create_app():
     app.include_router(webhook_controller.router, tags=["Webhooks"])
 
     app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
     class QuestionRequest(BaseModel):
         question: str
