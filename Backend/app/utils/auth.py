@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt # type: ignore
+from typing import Optional, Union
+from jose import JWTError, jwt
 from passlib.context import CryptContext
-from passlib.hash import bcrypt
 from fastapi import HTTPException, status
 import os
 
@@ -14,50 +13,62 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Проверка пароля"""
+    """Проверка соответствия пароля и хэша"""
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
-    """Хеширование пароля"""
+    """Хэширование пароля"""
     return pwd_context.hash(password)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(user_id: Union[str, int], expires_delta: Optional[timedelta] = None) -> str:
     """Создание access токена"""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire,
+        "type": "access"
+    }
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_refresh_token(data: dict):
+def create_refresh_token(user_id: Union[str, int]) -> str:
     """Создание refresh токена"""
-    to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire,
+        "type": "refresh"
+    }
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(token: str, token_type: str = "access"):
-    """Верификация токена"""
+def verify_token(token: str, token_type: str = "access") -> int:
+    """
+    Проверка токена и возврат user_id, если валиден.
+    Бросает HTTPException 401 при ошибке.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        token_type_in_payload: str = payload.get("type")
-        
-        if user_id is None or token_type_in_payload != token_type:
+        user_id = payload.get("sub")
+        token_type_in_payload = payload.get("type")
+
+        if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
+                detail="Token payload missing 'sub'",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        return user_id
-    except JWTError:
+
+        if token_type_in_payload != token_type:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Expected a '{token_type}' token, got '{token_type_in_payload}'",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        return int(user_id)
+
+    except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
