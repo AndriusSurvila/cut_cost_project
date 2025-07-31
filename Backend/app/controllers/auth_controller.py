@@ -59,9 +59,8 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             detail="Inactive user"
         )
     
-    access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)    
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -80,8 +79,8 @@ def refresh_token(token_data: TokenRefresh, db: Session = Depends(get_db)):
             detail="Invalid refresh token"
         )
     
-    access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
     
     return {
         "access_token": access_token,
