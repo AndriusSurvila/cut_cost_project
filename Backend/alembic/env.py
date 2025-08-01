@@ -18,8 +18,11 @@ except ImportError as e:
     print(f"Error importing models: {e}")
     target_metadata = None
 
+from pathlib import Path
+
 def get_url():
-    return os.getenv("DATABASE_URL", "sqlite:///./data/chat.db")
+    default_path = Path(__file__).resolve().parent.parent / "data" / "chat.db"
+    return os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
