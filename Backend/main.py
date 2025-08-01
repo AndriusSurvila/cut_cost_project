@@ -24,7 +24,7 @@ from app.models.models import Base
 from app.models.session import engine
 
 from app.config.stream_config import StreamConfig
-from app.controllers.stream_controller import EnhancedStreamController
+from app.controllers.stream_controller import StreamController
 from app.dependencies.auth import get_current_active_user
 from app.models.models import User
 

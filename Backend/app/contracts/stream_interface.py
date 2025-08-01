@@ -19,10 +19,6 @@ class StreamChunk(BaseModel):
     chunk_id: Optional[str] = None
     timestamp: Optional[float] = None
 
-    class Config:
-        # Pydantic v1 конфигурация
-        use_enum_values = True  # Автоматически использовать значения enum
-
 class StreamRequest(BaseModel):
     """Модель запроса для стрима"""
     prompt: str
@@ -38,9 +34,6 @@ class StreamResponse(BaseModel):
     total_tokens: Optional[int] = None
     completion_time: Optional[float] = None
     error_message: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 class LLMStreamInterface(ABC):
     """Интерфейс для стриминга LLM ответов"""

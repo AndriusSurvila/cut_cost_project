@@ -67,3 +67,41 @@ class EnhancedContainer:
         """Регистрация готового экземпляра"""
         self.singletons[service_type] = instance
         return self
+    
+    def resolve(self, service_type: Type) -> Any:
+    # Проверяем, есть ли уже созданный синглтон
+        if service_type in self.singletons:
+            return self.singletons[service_type]
+        
+        descriptor = self.services.get(service_type)
+        if descriptor is None:
+            raise Exception(f"Service {service_type} not registered")
+        
+        # Создаем экземпляр с учетом фабричной функции
+        if descriptor.factory_func is not None:
+            instance = descriptor.factory_func()
+        else:
+            # Создаем экземпляр, автоматически передавая зависимости через конструктор
+            instance = self._create_instance(descriptor.implementation)
+        
+        # Сохраняем синглтон, если нужно
+        if descriptor.lifetime == ServiceLifetime.SINGLETON:
+            self.singletons[service_type] = instance
+        
+        return instance
+
+    def _create_instance(self, cls: Type) -> Any:
+        # Анализируем конструктор
+        signature = inspect.signature(cls.__init__)
+        # Все параметры кроме self
+        params = list(signature.parameters.values())[1:]
+        
+        # Для каждого параметра пытаемся разрешить зависимость по аннотации
+        args = []
+        for param in params:
+            if param.annotation == inspect.Parameter.empty:
+                raise Exception(f"Cannot resolve dependency '{param.name}' of {cls}")
+            dependency = self.resolve(param.annotation)
+            args.append(dependency)
+        
+        return cls(*args)
