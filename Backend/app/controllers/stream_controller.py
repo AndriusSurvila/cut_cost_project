@@ -1,45 +1,70 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from app.models.session import get_db
-from app.policies.policies import generate_ai_response, stream_ai_response
-from app.contracts.stream_interface import LLMStreamInterface
+from pydantic import BaseModel, validator
+from typing import Optional, List
 
-router = APIRouter()
-
-class StreamRequest(BaseModel):
+class StreamRequestAPI(BaseModel):
+    """API модель для запроса стрима"""
     prompt: str
+    model: Optional[str] = None
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = None
+    stream: bool = True
 
-class AIGenerateRequest(BaseModel):
+    @validator('prompt')
+    def validate_prompt(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Prompt cannot be empty')
+        return v
+
+    @validator('temperature')
+    def validate_temperature(cls, v):
+        if v is not None and not (0.0 <= v <= 2.0):
+            raise ValueError('Temperature must be between 0.0 and 2.0')
+        return v
+
+    @validator('max_tokens')
+    def validate_max_tokens(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('max_tokens must be greater than 0')
+        return v
+
+class GenerateRequest(BaseModel):
+    """API модель для генерации без стрима"""
     prompt: str
+    model: Optional[str] = None
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = None
 
-class StreamController:
-    def __init__(self, llm_service: LLMStreamInterface):
-        self.llm_service = llm_service
-    
-    def stream(self, prompt: str) -> str:
-        """Метод для получения ответа от LLM сервиса"""
-        return self.llm_service.predict(prompt)
+    @validator('prompt')
+    def validate_prompt(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Prompt cannot be empty')
+        return v
 
-@router.post("/ai/generate")
-def generate_ai(request: AIGenerateRequest, db: Session = Depends(get_db)):
-    """Генерация AI ответа"""
-    try:
-        response = generate_ai_response(request.prompt, db)
-        return {"response": response}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    @validator('temperature')
+    def validate_temperature(cls, v):
+        if v is not None and not (0.0 <= v <= 2.0):
+            raise ValueError('Temperature must be between 0.0 and 2.0')
+        return v
 
-@router.get("/health")
-def health_check():
-    """Проверка состояния сервиса"""
-    return {"status": "OK", "message": "Service is healthy"}
+    @validator('max_tokens')
+    def validate_max_tokens(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('max_tokens must be greater than 0')
+        return v
 
-@router.post("/stream")
-def stream_response(request: StreamRequest):
-    """Стрим ответа AI"""
-    if not request.prompt:
-        raise HTTPException(status_code=400, detail="Prompt is required")
-    
-    return stream_ai_response(request.prompt)
+class ModelInfo(BaseModel):
+    """Информация о модели"""
+    name: str
+    description: str
+    max_tokens: int
+    temperature_range: List[float]
+
+class HealthResponse(BaseModel):
+    """Ответ проверки здоровья"""
+    status: str
+    service: str
+    version: str
+    models_available: int
+    uptime: str
+    response_time_ms: int
+    timestamp: float
