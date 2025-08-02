@@ -37,5 +37,6 @@ class Message(Base):
     role = Column(String)
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+    is_viewed = Column(Boolean, default=False, nullable=False)
 
     chat = relationship("Chat", back_populates="messages")
