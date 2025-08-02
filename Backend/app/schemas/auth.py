@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from datetime import datetime
 
@@ -6,6 +6,14 @@ class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
+
+    @validator('email')
+    def validate_email_domain(cls, v):
+        allowed_domains = ['gmail.com', 'yandex.ru']
+        domain = v.split('@')[-1]
+        if domain not in allowed_domains:
+            raise ValueError(f'Email domain must be one of {allowed_domains}')
+        return v
 
 class UserLogin(BaseModel):
     username: str
@@ -32,6 +40,14 @@ class TokenRefresh(BaseModel):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
+
+    @validator('email')
+    def validate_email_domain(cls, v):
+        allowed_domains = ['gmail.com', 'yandex.ru']
+        domain = v.split('@')[-1]
+        if domain not in allowed_domains:
+            raise ValueError(f'Email domain must be one of {allowed_domains}')
+        return v
 
 class PasswordChange(BaseModel):
     current_password: str
