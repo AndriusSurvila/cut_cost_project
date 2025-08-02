@@ -32,6 +32,10 @@ from app.controllers import chat_controller
 from app.controllers import webhook_controller
 from app.controllers import auth_controller
 from app.controllers import stream_controller
+from app.controllers import message_controller
+
+
+
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -69,6 +73,7 @@ def create_app():
     app.include_router(stream_controller.router, prefix="/stream", tags=["AI Stream"])
     app.include_router(chat_controller.router, prefix="/api", tags=["Chats"])
     app.include_router(webhook_controller.router, tags=["Webhooks"])
+    app.include_router(message_controller.router, prefix="/api", tags=["messages"])
 
     app.add_middleware(
         CORSMiddleware,
