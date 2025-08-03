@@ -1,3 +1,4 @@
+
 from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from datetime import datetime
@@ -9,7 +10,7 @@ class UserCreate(BaseModel):
 
     @validator('email')
     def validate_email_domain(cls, v):
-        allowed_domains = ['gmail.com', 'yandex.ru']
+        allowed_domains = ['gmail.com']
         domain = v.split('@')[-1]
         if domain not in allowed_domains:
             raise ValueError(f'Email domain must be one of {allowed_domains}')
