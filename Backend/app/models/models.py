@@ -1,5 +1,4 @@
-
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Enum, BigInteger
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 import enum
@@ -17,49 +16,67 @@ class Feedback(str, enum.Enum):
     LIKE = "like"
     DISLIKE = "dislike"
 
-
 class User(Base):
     __tablename__ = "users"
-
+    
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    
     chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
-
+    messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
 
 class Chat(Base):
     __tablename__ = "chats"
-
+    
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, default="New Chat")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    
     user = relationship("User", back_populates="chats")
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
 
-
 class Message(Base):
     __tablename__ = "messages"
-
+    
     id = Column(Integer, primary_key=True, index=True)
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     role = Column(String)
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_viewed = Column(Boolean, default=False, nullable=False)
-
+    
     reply_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
-    reply = relationship("Message", remote_side=[id])
-
+    reply = relationship("Message", remote_side=[id], back_populates="replies")
+    replies = relationship("Message", back_populates="reply")
+    
     status = Column(Enum(MessageStatus), default=MessageStatus.GENERATING, nullable=False)
-
     feedback = Column(Enum(Feedback), default=Feedback.NONE, nullable=False)
-
     llm_type = Column(String, nullable=True)
-
+    
     chat = relationship("Chat", back_populates="messages")
+    user = relationship("User", back_populates="messages")
+    media = relationship("MessageMedia", back_populates="message", cascade="all, delete-orphan")
+
+class MessageMedia(Base):
+    __tablename__ = "message_media"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
+    media_path = Column(String(500), nullable=False)
+    media_type = Column(String(50), nullable=False)  # image, video, audio, document
+    original_name = Column(String(255), nullable=True)
+    file_size = Column(BigInteger, nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    message = relationship("Message", back_populates="media")
+    
+    def __repr__(self):
+        return f"<MessageMedia(id={self.id}, message_id={self.message_id}, type={self.media_type})>"
