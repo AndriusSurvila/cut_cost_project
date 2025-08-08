@@ -123,10 +123,19 @@ def send_message(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
+    # Сохраняем сообщение пользователя
     user_message = save_message_to_chat(db, chat_id, "user", message_data.content)
+    
     try:
-        ai_response = generate_ai_response(message_data.content, db)
+        # ОБНОВЛЕНО: передаем chat_id и db для получения истории сообщений
+        ai_response = generate_ai_response(
+            prompt=message_data.content, 
+            db=db, 
+            chat_id=chat_id,
+            history_limit=10  # Количество сообщений в истории (можно настроить)
+        )
         ai_message = save_message_to_chat(db, chat_id, "assistant", ai_response)
+        
         return {
             "user_message": {
                 "id": user_message.id,
@@ -143,7 +152,6 @@ def send_message(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI response failed: {str(e)}")
-
 
 
 @router.get("/chats/search", response_model=List[ChatResponse])
