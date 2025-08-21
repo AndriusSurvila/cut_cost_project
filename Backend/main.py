@@ -15,32 +15,25 @@ def load_env():
 
 load_env()
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
-
-from app.models.models import Base
-from app.models.session import engine
-
-from app.config.stream_config import StreamConfig
-from app.controllers.stream_controller import StreamController
-from app.dependencies.auth import get_current_active_user
-from app.models.models import User
-
-from app.controllers import chat_controller
-from app.controllers import webhook_controller
-from app.controllers import auth_controller
-from app.controllers import stream_controller
-from app.controllers import message_controller
-
-
-
-
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
 import logging
+
+from sqlalchemy.exc import SQLAlchemyError
+from app.models.models import Base, User
+from app.models.session import engine
+from app.config.stream_config import StreamConfig
+from app.controllers import (
+    chat_controller,
+    webhook_controller,
+    auth_controller,
+    stream_controller,
+    message_controller
+)
+from app.dependencies.auth import get_current_active_user
 
 def create_tables():
     """Создание всех таблиц в БД"""
@@ -69,24 +62,23 @@ def create_app():
         version="2.0.0"
     )
 
+    # Подключаем роутеры
     app.include_router(auth_controller.router, prefix="/auth", tags=["Authentication"])
     app.include_router(stream_controller.router, prefix="/stream", tags=["AI Stream"])
     app.include_router(chat_controller.router, prefix="/api", tags=["Chats"])
     app.include_router(webhook_controller.router, tags=["Webhooks"])
     app.include_router(message_controller.router, prefix="/api", tags=["messages"])
 
+    # Настраиваем CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://localhost:3001", 
-            "http://127.0.0.1:3000"
-        ],
+        allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
+    # ====== Дополнительный эндпоинт /ask ======
     class QuestionRequest(BaseModel):
         question: str
 
@@ -95,49 +87,41 @@ def create_app():
         request: QuestionRequest,
         current_user: User = Depends(get_current_active_user)
     ):
-        """
-        Многоступенчатая обработка вопроса с аутентификацией:
-        1. Определение языка и перевод на английский
-        2. Получение ответа на английском
-        3. Перевод ответа обратно на исходный язык
-        """
+        """3-шаговый переводчик с использованием AI"""
         user_question = request.question.strip()
 
-        from app.controllers.stream_controller import get_controller
+        from app.controllers.stream_controller import get_controller, GenerateRequest
         controller = get_controller()
 
         try:
+            # 1. Перевод вопроса на английский
             step1_prompt = f"""
 Detect the language of the question and translate it into English.
 Return ONLY the translated English version, no comments.
 
 Question: {user_question}
 """
-            
-            from app.contracts.stream_interface import StreamRequest
-            from app.controllers.stream_controller import GenerateRequest
-            
             english_question = await controller.generate_response(
                 GenerateRequest(prompt=step1_prompt)
             )
 
+            # 2. Получение ответа на английском
             step2_prompt = f"""
 Answer the following question in English, clearly and concisely:
 
 {english_question}
 """
-            
             english_answer = await controller.generate_response(
                 GenerateRequest(prompt=step2_prompt)
             )
 
+            # 3. Перевод ответа обратно
             step3_prompt = f"""
 The original question was: "{user_question}"
 The answer in English is: "{english_answer}"
 Detect the original language and translate the answer BACK into it.
 Return ONLY the translated answer, with no extra text.
 """
-            
             final_answer = await controller.generate_response(
                 GenerateRequest(prompt=step3_prompt)
             )
@@ -159,10 +143,8 @@ Return ONLY the translated answer, with no extra text.
         return {
             "message": "Enhanced ChatGPT-like AI API with Authentication",
             "version": "2.0.0",
-            "pydantic_version": "1.10.13",
             "service_mode": service_mode,
             "docs": "/docs",
-            "health": "/stream/health",
             "endpoints": {
                 "auth": {
                     "register": "/auth/register",
@@ -173,9 +155,7 @@ Return ONLY the translated answer, with no extra text.
                 "stream": {
                     "stream_chat": "/stream/stream",
                     "generate": "/stream/generate",
-                    "models": "/stream/models",
-                    "health": "/stream/health",
-                    "test": "/stream/test/stream-connection"
+                    "models": "/stream/models"
                 },
                 "chat": {
                     "list": "/api/chats",
@@ -188,29 +168,22 @@ Return ONLY the translated answer, with no extra text.
 
     return app
 
+# Создание приложения
 app = create_app()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Логирование и обработка ошибок
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     logger.error(f"Database error: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Database error occurred"}
-    )
+    return JSONResponse(status_code=500, content={"detail": "Database error occurred"})
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unexpected error: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
